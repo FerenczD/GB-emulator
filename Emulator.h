@@ -51,12 +51,6 @@ class Emulator
 
   private:
 
-    bool ResetCPU();
-    void ResetScreen();
-    void WriteByte (WORD address, BYTE data);
-    BYTE ReadMemory (WORD address) const;
-    void CreateRamBanks(int numBanks);
-
     // Registers can be used as single 8-bit reg or 16-bit reg combined
     union Register
     {
@@ -66,6 +60,39 @@ class Emulator
         BYTE hi;
       };
     };
+
+		enum COLOUR
+		{
+			WHITE,
+			LIGHT_GRAY,
+			DARK_GRAY,
+			BLACK
+		};
+
+    BYTE ExecuteNextOpcode();
+    bool ResetCPU();
+    void ResetScreen();
+    void WriteByte(WORD address, BYTE data);
+    BYTE ReadMemory(WORD address) const;
+    void CreateRamBanks(int numBanks);
+		void RequestInterupt(int bit);
+    void DoInterrupts();
+    void DoGraphics(int cycles);
+    void ServiceInterrupt(int num);
+    void PushWordOntoStack(WORD word);
+    BYTE GetJoypadState() const;
+    void KeyPressed(int key);
+    void KeyReleased(int key);
+    BYTE GetJoypadState() const;
+
+    void IssueVerticalBlank();
+    void DrawCurrentLine();
+    void SetLCDStatus();
+    BYTE GetLCDMode() const ;
+    void DrawScanLine();
+    void RenderSprites(BYTE lcdControl);
+    void RenderBackground(BYTE lcdControl);
+    COLOUR GetColour(BYTE colourNum, WORD address) const;
 
 		unsigned long long	m_TotalOpcodes;
 
@@ -83,6 +110,10 @@ class Emulator
     Register    m_RegisterHL;
 
 		Register    m_StackPointer;
+
+		bool				m_EnableInterupts ;
+		bool        m_PendingInteruptDisabled ;
+		bool				m_PendingInteruptEnabled ;
 
 		int					m_CurrentRomBank;
 		int					m_CurrentRamBank;
