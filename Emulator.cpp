@@ -2,6 +2,7 @@
 
 #include "Config.h"
 #include "Emulator.h"
+#include "LogMessages.h"
 
 /* Local constants */
 #define RETRACE_START 456
@@ -52,6 +53,14 @@ void Emulator::Update()
 	counter9 += m_CyclesThisUpdate;
 	m_RenderFunc();
 }
+//////////////////////////////////////////////////////////////////
+
+bool Emulator::InitGame(RenderFunc func)
+{
+  m_RenderFunc = func;
+  return ResetCPU();
+}
+
 //////////////////////////////////////////////////////////////////
 
 void Emulator::DoGraphics(int cycles)
@@ -151,9 +160,9 @@ void Emulator::ServiceInterrupt(int num)
   PushWordOntoStack(m_ProgramCounter);
   m_Halted = false;
 
-//   char buffer[200];
-// 	sprintf(buffer, "servicing interupt %d", num);
-// 	LogMessage::GetSingleton()->DoLogMessage(buffer, false);
+  char buffer[200];
+	sprintf(buffer, "servicing interupt %d", num);
+	LogMessage::GetSingleton()->DoLogMessage(buffer, false);
 
   switch(num)
   {
@@ -179,6 +188,17 @@ void Emulator::PushWordOntoStack(WORD word)
   WriteByte(m_StackPointer.reg, hi);
   m_StackPointer.reg--;
   WriteByte(m_StackPointer.reg, lo); 
+}
+
+//////////////////////////////////////////////////////////////////
+
+WORD Emulator::PopWordOffStack( )
+{
+	WORD word = ReadMemory(m_StackPointer.reg+1) << 8;
+	word |= ReadMemory(m_StackPointer.reg);
+	m_StackPointer.reg+=2;
+
+	return word ;
 }
 
 //////////////////////////////////////////////////////////////////
@@ -320,9 +340,9 @@ BYTE Emulator::ExecuteNextOpcode()
 	{
 		if (false)
 		{
-			// char buffer[200];
-			// sprintf(buffer, "OP = %x PC = %x\n", opcode, m_ProgramCounter);
-			// LogMessage::GetSingleton()->DoLogMessage(buffer,false);
+			char buffer[200];
+			sprintf(buffer, "OP = %x PC = %x\n", opcode, m_ProgramCounter);
+			LogMessage::GetSingleton()->DoLogMessage(buffer,false);
 		}
 
 		m_ProgramCounter++;
@@ -502,9 +522,9 @@ void Emulator::WriteByte(WORD address, BYTE data)
       m_CurrentRomBank |= data;
 
       // TODO: define log messages
-			// char buffer[256];
-			// sprintf(buffer, "Chaning Rom Bank to %d", m_CurrentRomBank);
-			// LogMessage::GetSingleton()->DoLogMessage(buffer, false);
+			char buffer[256];
+			sprintf(buffer, "Chaning Rom Bank to %d", m_CurrentRomBank);
+			LogMessage::GetSingleton()->DoLogMessage(buffer, false);
     }
     else if (m_UsingMBC2)
 		{
@@ -539,9 +559,9 @@ void Emulator::WriteByte(WORD address, BYTE data)
 				m_CurrentRomBank |= data;
 
         // TODO: define log messages
-				// char buffer[256];
-				// sprintf(buffer, "Chaning Rom Bank to %d", m_CurrentRomBank);
-				// LogMessage::GetSingleton()->DoLogMessage(buffer, false);
+				char buffer[256];
+				sprintf(buffer, "Chaning Rom Bank to %d", m_CurrentRomBank);
+				LogMessage::GetSingleton()->DoLogMessage(buffer, false);
 
 			}
 			else
@@ -549,9 +569,9 @@ void Emulator::WriteByte(WORD address, BYTE data)
 				m_CurrentRamBank = data & 0x3;
 
         // TODO: define log messages  
-				// char buffer[256];
-				// sprintf(buffer, "=====Chaning Ram Bank to %d=====", m_CurrentRamBank);
-				// LogMessage::GetSingleton()->DoLogMessage(buffer, false);
+				char buffer[256];
+				sprintf(buffer, "=====Chaning Ram Bank to %d=====", m_CurrentRamBank);
+				LogMessage::GetSingleton()->DoLogMessage(buffer, false);
 
 			}
 		}

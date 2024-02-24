@@ -38,14 +38,21 @@ class Emulator
     ~Emulator(void);
 
     bool LoadRom(const std::string& romName);
+    bool InitGame(RenderFunc func);
+		void StopGame();
+
     void Update();
 		void StopGame();
 		BYTE ExecuteNextOpcode();
+		void ExecuteExtendedOpcode();
 
 		void DoTimers(int cycles);
 		void DoGraphics(int cycles);
 		void DoInput();
 		void DoInterupts();
+
+    void KeyPressed(int key);
+    void KeyReleased(int key);
 
     BYTE m_ScreenData[SCREEN_X_AXIS_SIZE][SCREEN_Y_AXIS_SIZE][SCREEN_RGB_SIZE];
 
@@ -70,6 +77,7 @@ class Emulator
 		};
 
     BYTE ExecuteNextOpcode();
+    void ExecuteOpcode(BYTE opcode);
     bool ResetCPU();
     void ResetScreen();
     void WriteByte(WORD address, BYTE data);
@@ -80,10 +88,12 @@ class Emulator
     void DoGraphics(int cycles);
     void ServiceInterrupt(int num);
     void PushWordOntoStack(WORD word);
+    WORD PopWordOffStack();
+
     BYTE GetJoypadState() const;
-    void KeyPressed(int key);
-    void KeyReleased(int key);
     BYTE GetJoypadState() const;
+    WORD ReadWord() const;
+
 
     void IssueVerticalBlank();
     void DrawCurrentLine();
@@ -94,15 +104,72 @@ class Emulator
     void RenderBackground(BYTE lcdControl);
     COLOUR GetColour(BYTE colourNum, WORD address) const;
 
+    // CPU instructions
+    void CPU_8BIT_LOAD(BYTE& reg);
+		void CPU_16BIT_LOAD(WORD& reg);
+		void CPU_REG_LOAD(BYTE& reg, BYTE load, int cycles) ;
+		void CPU_REG_LOAD_ROM	( BYTE& reg, WORD address);
+		void CPU_8BIT_ADD(BYTE& reg, BYTE toAdd, int cycles, bool useImmediate, bool addCarry);
+		void CPU_8BIT_SUB(BYTE& reg, BYTE toSubtract, int cycles, bool useImmediate, bool subCarry);
+		void CPU_8BIT_AND(BYTE& reg, BYTE toAnd, int cycles, bool useImmediate);
+		void CPU_8BIT_OR	(BYTE& reg, BYTE toOr, int cycles, bool useImmediate);
+		void CPU_8BIT_XOR(BYTE& reg, BYTE toXOr, int cycles, bool useImmediate);
+		void CPU_8BIT_COMPARE	( BYTE reg, BYTE toSubtract, int cycles, bool useImmediate) ; //dont pass a reference
+		void CPU_8BIT_INC(BYTE& reg, int cycles);
+		void CPU_8BIT_DEC(BYTE& reg, int cycles);
+		void CPU_8BIT_MEMORY_INC	( WORD address, int cycles);
+		void CPU_8BIT_MEMORY_DEC	( WORD address, int cycles);
+		void CPU_RESTARTS(BYTE n);
+
+		void CPU_16BIT_DEC(WORD& word, int cycles);
+		void CPU_16BIT_INC(WORD& word, int cycles);
+		void CPU_16BIT_ADD(WORD& reg, WORD toAdd, int cycles);
+
+		void CPU_JUMP	(bool useCondition, int flag, bool condition);
+		void CPU_JUMP_IMMEDIATE	( bool useCondition, int flag, bool condition);
+		void CPU_CALL	(bool useCondition, int flag, bool condition);
+		void CPU_RETURN	(bool useCondition, int flag, bool condition);
+
+		void CPU_SWAP_NIBBLES	( BYTE& reg);
+		void CPU_SWAP_NIB_MEM	( WORD address);
+		void CPU_SHIFT_LEFT_CARRY( BYTE& reg);
+		void CPU_SHIFT_LEFT_CARRY_MEMORY( WORD address);
+		void CPU_SHIFT_RIGHT_CARRY( BYTE& reg, bool resetMSB);
+		void CPU_SHIFT_RIGHT_CARRY_MEMORY( WORD address, bool resetMSB );
+
+		void CPU_RESET_BIT(BYTE& reg, int bit);
+		void CPU_RESET_BIT_MEMORY( WORD address, int bit);
+		void CPU_TEST_BIT(BYTE reg, int bit, int cycles);
+		void CPU_SET_BIT(BYTE& reg, int bit);
+		void CPU_SET_BIT_MEMORY	( WORD address, int bit);
+
+		void CPU_DAA();
+
+		void CPU_RLC(BYTE& reg);
+		void CPU_RLC_MEMORY(WORD address);
+		void CPU_RRC(BYTE& reg);
+		void CPU_RRC_MEMORY(WORD address);
+		void CPU_RL(BYTE& reg);
+		void CPU_RL_MEMORY(WORD address);
+		void CPU_RR(BYTE& reg);
+		void CPU_RR_MEMORY(WORD address);
+
+		void CPU_SLA(BYTE& reg);
+		void CPU_SLA_MEMORY(WORD address);
+		void CPU_SRA(BYTE& reg);
+		void CPU_SRA_MEMORY(WORD address);
+		void CPU_SRL(BYTE& reg);
+		void CPU_SRL_MEMORY(WORD address);
+
 		unsigned long long	m_TotalOpcodes;
 
-		BYTE				m_JoypadState;
-		bool				m_GameLoaded;
-		BYTE				m_Rom[ROM_SIZE];
-    BYTE				m_GameBank[CARTRIDGE_SIZE];   // Game cartridge can only store 0x200000
+		BYTE m_JoypadState;
+		bool m_GameLoaded;
+		BYTE m_Rom[ROM_SIZE];
+    BYTE m_GameBank[CARTRIDGE_SIZE];   // Game cartridge can only store 0x200000
     std::vector<BYTE*>	m_RamBank ;
-    WORD				m_ProgramCounter;
-		bool				m_EnableRamBank;
+    WORD m_ProgramCounter;
+		bool m_EnableRamBank;
 
     Register    m_RegisterAF;
     Register    m_RegisterBC;
@@ -111,31 +178,31 @@ class Emulator
 
 		Register    m_StackPointer;
 
-		bool				m_EnableInterupts ;
+		bool m_EnableInterupts ;
 		bool        m_PendingInteruptDisabled ;
-		bool				m_PendingInteruptEnabled ;
+		bool m_PendingInteruptEnabled ;
 
-		int					m_CurrentRomBank;
-		int					m_CurrentRamBank;
-    bool				m_UsingMemoryModel16_8;
-		int					m_RetraceLY;
-		int					m_CyclesThisUpdate;
+		int 	m_CurrentRomBank;
+		int 	m_CurrentRamBank;
+    bool m_UsingMemoryModel16_8;
+		int 	m_RetraceLY;
+		int 	m_CyclesThisUpdate;
 
     // Debug variables
-		bool				m_DebugPause;
-		bool				m_DebugPausePending;
-		bool				m_DoLogging;
-		BYTE				m_DebugValue;
+		bool m_DebugPause;
+		bool m_DebugPausePending;
+		bool m_DoLogging;
+		BYTE m_DebugValue;
 
 		PauseFunc		m_TimeToPause;
 		RenderFunc  m_RenderFunc;
 
-		bool				m_UsingMBC1;  // Bank switching 1 (Most common type)
+		bool m_UsingMBC1;  // Bank switching 1 (Most common type)
     bool        m_UsingMBC2;  // Not too many games use this 
-		int					m_TimerVariable;
-		int					m_CurrentClockSpeed;
-		int					m_DividerVariable;
-		bool				m_Halted;
+		int 	m_TimerVariable;
+		int 	m_CurrentClockSpeed;
+		int 	m_DividerVariable;
+		bool m_Halted;
 
 };
 
