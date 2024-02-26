@@ -1,6 +1,6 @@
 # Compiler and flags
 CXX = g++
-CXXFLAGS = -std=c++11 -Wall -m32
+CXXFLAGS = -std=c++11 -Wall
 
 # Directories
 SRC_DIR = .
@@ -13,16 +13,16 @@ OBJ_FILES = $(patsubst %.cpp,$(BUILD_DIR)/%.o,$(SRC_FILES))
 
 # Additional include and library directories for SDL
 SDL_INCLUDE = -ISDL/include/
-SDL_LIB = -LSDL/lib -lSDLmain -lSDL
+SDL_LIB = -LSDL/lib -lSDL2main -lSDL2 -lopengl32
 
 GL_INCLUDE = -IGL/
-GL_LIB  = -LGL
+GL_LIB  = -LGL -lfreeglut
 
 # Include directories
 INCLUDES = -I$(INCLUDE_DIR) $(SDL_INCLUDE) $(GL_INCLUDE)
 
 # Target executable
-TARGET = my_program
+TARGET = gb-emulator
 
 # Build rule
 $(BUILD_DIR)/%.o: $(SRC_DIR)/%.cpp

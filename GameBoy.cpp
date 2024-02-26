@@ -1,7 +1,7 @@
 #include "Config.h"
 #include "Emulator.h"
 #include "GameBoy.h"
-
+#include "LogMessages.h"
 
 #ifdef WIN32
   #include <Windows.h>
@@ -14,7 +14,7 @@
 
 static const int windowWidth = SCREEN_X_AXIS_SIZE;
 static const int windowHeight = SCREEN_Y_AXIS_SIZE;
-
+static SDL_Window *window;
 ///////////////////////////////////////////////////////////////////////////////////////
 
 static int total = 0;
@@ -139,12 +139,22 @@ bool GameBoy::CreateSDLWindow()
   if (SDL_Init(SDL_INIT_EVERYTHING) < 0)
     return false;
   
-  if (SDL_SetVideoMode(windowWidth, windowHeight, 8, SDL_OPENGL) == NULL)
+  // if (SDL_SetVideoMode(windowWidth, windowHeight, 8, SDL_OPENGL) == NULL)
+  //   return false;
+  window = SDL_CreateWindow("OpenGL Test", 
+                             SDL_WINDOWPOS_CENTERED , 
+                             SDL_WINDOWPOS_CENTERED , 
+                             windowWidth, windowHeight,
+                             SDL_WINDOW_RESIZABLE | SDL_WINDOW_OPENGL);
+
+  if (window == NULL)
     return false;
+
+  SDL_GL_CreateContext(window);
 
   InitGL();
 
-  SDL_WM_SetCaption("OpenGL Test", NULL);
+  // SDL_WM_SetCaption("OpenGL Test", NULL);
 
   return true;
 }
@@ -176,7 +186,7 @@ void GameBoy::RenderGame()
   glRasterPos2i(-1, 1);
   glPixelZoom(1, -1);
   glDrawPixels(160, 144, GL_RGB, GL_UNSIGNED_BYTE, m_Emulator->m_ScreenData);
-  SDL_GL_SwapBuffers( );
+  SDL_GL_SwapWindow(window);
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////

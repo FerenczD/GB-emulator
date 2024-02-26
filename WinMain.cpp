@@ -4,7 +4,7 @@
 
 // extern "C" { FILE __iob_func[3] = { *stdin,*stdout,*stderr }; }
 
-int main(int argc, char *argv[])
+int WinMain(int argc, char *argv[])
 {
 	LogMessage* log = LogMessage::CreateInstance();
 	GameBoy* gb = GameBoy::CreateInstance();

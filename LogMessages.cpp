@@ -45,10 +45,15 @@ void LogMessage::DoLogMessage(const char* message, bool logToConsole)
 
   // Convert current time to string
   std::string timeString = std::ctime(&currentTime);
+  size_t nullPos = timeString.find('\n');
+
+  if (nullPos != std::string::npos) {
+      timeString.erase(nullPos, 1);
+  }
 
   // Print buffer
   char msgBuffer[255];
-  std::snprintf(msgBuffer, sizeof(msgBuffer), "[%s]: %s\r\n", timeString.c_str(), message);
+  std::snprintf(msgBuffer, sizeof(msgBuffer), "[%s]: %s", timeString.c_str(), message);
 
   // Log to file
   if (m_LogFile != NULL)
