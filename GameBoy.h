@@ -3,7 +3,7 @@
 #define _GAMEBOY_H
 
 #include "Emulator.h"
-#include "SDL.h"
+#include "SDL/include/SDL.h"
 
 class GameBoy
 {
@@ -14,7 +14,7 @@ class GameBoy
     static GameBoy* GetSingleton();
 
     void RenderGame();
-    void Initialize();
+    bool Initialize();
     void SetKeyPressed(int key);
     void SetKeyReleased(int key);
     void StartEmulation();

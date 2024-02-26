@@ -3,6 +3,7 @@
 #include "Config.h"
 #include "Emulator.h"
 #include "LogMessages.h"
+#include <string.h>
 
 /* Local constants */
 #define RETRACE_START 456
@@ -10,6 +11,42 @@
 #define VERTICAL_BLANK_SCAN_LINE_MAX 0x99
 #define RETRACE_START 456
 
+//////////////////////////////////////////////////////////////////
+
+Emulator::Emulator(void) :
+	m_GameLoaded(false)
+	,m_CyclesThisUpdate(0)
+	,m_UsingMBC1(false)
+	,m_EnableRamBank(false)
+	,m_UsingMemoryModel16_8(true)
+	,m_EnableInterupts(false)
+	,m_PendingInteruptDisabled(false)
+	,m_PendingInteruptEnabled(false)
+	,m_RetraceLY(RETRACE_START)
+	,m_JoypadState(0)
+	,m_Halted(false)
+	,m_TimerVariable(0)
+	,m_CurrentClockSpeed(1024)
+	,m_DividerVariable(0)
+	,m_CurrentRamBank(0)
+	,m_DebugPause(false)
+	,m_DebugPausePending(false)
+	,m_TimeToPause(NULL)
+	,m_TotalOpcodes(0)
+	,m_DoLogging(false)
+{
+	ResetScreen( );
+}
+
+//////////////////////////////////////////////////////////////////
+
+Emulator::~Emulator(void)
+{
+	for (std::vector<BYTE*>::iterator it = m_RamBank.begin(); it != m_RamBank.end(); it++)
+		delete[] (*it) ;
+}
+
+//////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////
 
 static int hack = 0;
@@ -53,6 +90,14 @@ void Emulator::Update()
 	counter9 += m_CyclesThisUpdate;
 	m_RenderFunc();
 }
+
+//////////////////////////////////////////////////////////////////
+
+void Emulator::DoInput( )
+{
+
+}
+
 //////////////////////////////////////////////////////////////////
 
 bool Emulator::InitGame(RenderFunc func)
@@ -237,6 +282,15 @@ void Emulator::ResetScreen()
     }
   }
 }
+
+//////////////////////////////////////////////////////////////////
+
+void Emulator::StopGame( )
+{
+	m_GameLoaded = false ;
+}
+
+//////////////////////////////////////////////////////////////////
 
 bool Emulator::ResetCPU()
 {
@@ -1172,4 +1226,14 @@ void Emulator::RequestInterupt(int bit)
   BYTE requestFlag = ReadMemory(0xFF0F);
   requestFlag = BitSet(requestFlag, bit);
   WriteByte(0xFF0F, requestFlag);
+}
+
+//////////////////////////////////////////////////////////////////
+
+WORD Emulator::ReadWord( ) const
+{
+	WORD res = ReadMemory(m_ProgramCounter+1) ;
+	res = res << 8 ;
+	res |= ReadMemory(m_ProgramCounter) ;
+	return res ;
 }

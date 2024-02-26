@@ -39,7 +39,6 @@ class Emulator
 
     bool LoadRom(const std::string& romName);
     bool InitGame(RenderFunc func);
-		void StopGame();
 
     void Update();
 		void StopGame();
@@ -47,7 +46,6 @@ class Emulator
 		void ExecuteExtendedOpcode();
 
 		void DoTimers(int cycles);
-		void DoGraphics(int cycles);
 		void DoInput();
 		void DoInterupts();
 
@@ -76,7 +74,6 @@ class Emulator
 			BLACK
 		};
 
-    BYTE ExecuteNextOpcode();
     void ExecuteOpcode(BYTE opcode);
     bool ResetCPU();
     void ResetScreen();
@@ -90,7 +87,6 @@ class Emulator
     void PushWordOntoStack(WORD word);
     WORD PopWordOffStack();
 
-    BYTE GetJoypadState() const;
     BYTE GetJoypadState() const;
     WORD ReadWord() const;
 
@@ -184,7 +180,7 @@ class Emulator
 
 		int 	m_CurrentRomBank;
 		int 	m_CurrentRamBank;
-    bool m_UsingMemoryModel16_8;
+    bool  m_UsingMemoryModel16_8;
 		int 	m_RetraceLY;
 		int 	m_CyclesThisUpdate;
 
@@ -198,15 +194,13 @@ class Emulator
 		RenderFunc  m_RenderFunc;
 
 		bool m_UsingMBC1;  // Bank switching 1 (Most common type)
-    bool        m_UsingMBC2;  // Not too many games use this 
-		int 	m_TimerVariable;
-		int 	m_CurrentClockSpeed;
-		int 	m_DividerVariable;
+    bool m_UsingMBC2;  // Not too many games use this 
+		int  m_TimerVariable;
+		int  m_CurrentClockSpeed;
+		int  m_DividerVariable;
 		bool m_Halted;
 
 };
-
-
 #endif
 
 /*

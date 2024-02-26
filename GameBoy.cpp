@@ -5,11 +5,11 @@
 
 #ifdef WIN32
   #include <Windows.h>
-  #include "SDL.h"
-  #include "SDL_opengl.h"
+  #include "SDL/include/SDL.h"
+  #include "SDL/include/SDL_opengl.h"
 #else
-  #include <SDL/SDL.h>
-  #include <SDL/SDL_opengl.h>
+#include "SDL/include/SDL.h"
+#include "SDL/include/SDL_opengl.h"
 #endif
 
 static const int windowWidth = SCREEN_X_AXIS_SIZE;
@@ -43,6 +43,14 @@ static void CheckFPS( )
 	}
 }
 
+//////////////////////////////////////////////////////////////////////////////////////////
+
+static void DoRender()
+{
+  GameBoy* gb = GameBoy::GetSingleton();
+  gb->RenderGame();
+}
+
 ///////////////////////////////////////////////////////////////////////////////////////
 GameBoy* GameBoy::m_Instance = 0;
 
@@ -64,6 +72,14 @@ GameBoy* GameBoy::GetSingleton()
 {
   return m_Instance;
 }
+
+//////////////////////////////////////////////////////////////////////////////////////////
+
+GameBoy::~GameBoy(void)
+{
+	delete m_Emulator ;
+}
+
 
 //////////////////////////////////////////////////////////////////////////////////////////
 
@@ -153,14 +169,6 @@ void GameBoy::InitGL()
 
 //////////////////////////////////////////////////////////////////////////////////////////
 
-static void DoRender()
-{
-  GameBoy gb = GameBoy::GetSingleton();
-  gb->RenderGame();
-}
-
-//////////////////////////////////////////////////////////////////////////////////////////
-
 void GameBoy::RenderGame()
 {
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -181,14 +189,14 @@ void GameBoy::SetKeyPressed(int key)
 
 void GameBoy::SetKeyReleased(int key)
 {
-  m_emulator->KeyPressed(key);
+  m_Emulator->KeyPressed(key);
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////
 
-void GameBoy::(SDL_Event& event)
+void GameBoy::HandleInput(SDL_Event& event)
 {
-  if (event.type = SDL_KEYDOWN)
+  if (event.type == SDL_KEYDOWN)
   {
     int key = -1;
 
