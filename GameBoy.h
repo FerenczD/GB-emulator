@@ -2,6 +2,8 @@
 #ifndef _GAMEBOY_H
 #define _GAMEBOY_H
 
+class Emulator ;
+
 #include "Emulator.h"
 #include "SDL/include/SDL.h"
 

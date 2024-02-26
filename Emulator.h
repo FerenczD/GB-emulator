@@ -43,29 +43,16 @@ class Emulator
     void Update();
 		void StopGame();
 		BYTE ExecuteNextOpcode();
-		void ExecuteExtendedOpcode();
-
-		void DoTimers(int cycles);
-		void DoInput();
-		void DoInterupts();
-
-    void KeyPressed(int key);
+		void KeyPressed(int key);
     void KeyReleased(int key);
+		void				SetPauseFunction	( PauseFunc func ) { m_TimeToPause = func ; }
+		unsigned long long	GetTotalOpcodes		( ) const { return m_TotalOpcodes; }
+		void				SetPausePending		( bool pending ) { m_DebugPause = false ;m_DebugPausePending = pending ; }
+		void				SetPause			( bool pause ) { m_DebugPause = pause; }
 
-    BYTE m_ScreenData[SCREEN_X_AXIS_SIZE][SCREEN_Y_AXIS_SIZE][SCREEN_RGB_SIZE];
+		BYTE m_ScreenData[144][160][3] ;
 
   private:
-
-    // Registers can be used as single 8-bit reg or 16-bit reg combined
-    union Register
-    {
-      WORD reg;
-      struct {
-        BYTE lo;      // Little-Endianess
-        BYTE hi;
-      };
-    };
-
 		enum COLOUR
 		{
 			WHITE,
@@ -74,33 +61,28 @@ class Emulator
 			BLACK
 		};
 
-    void ExecuteOpcode(BYTE opcode);
+    BYTE GetLCDMode() const;
+		void SetLCDStatus();
+    BYTE GetJoypadState() const;
+    void CreateRamBanks(int numBanks);
+
+    BYTE ReadMemory(WORD address) const;
     bool ResetCPU();
     void ResetScreen();
-    void WriteByte(WORD address, BYTE data);
-    BYTE ReadMemory(WORD address) const;
-    void CreateRamBanks(int numBanks);
-		void RequestInterupt(int bit);
-    void DoInterrupts();
+    void DoInterupts();
     void DoGraphics(int cycles);
-    void ServiceInterrupt(int num);
-    void PushWordOntoStack(WORD word);
-    WORD PopWordOffStack();
-
-    BYTE GetJoypadState() const;
-    WORD ReadWord() const;
-
-
-    void IssueVerticalBlank();
-    void DrawCurrentLine();
-    void SetLCDStatus();
-    BYTE GetLCDMode() const ;
+		void ServiceInterrupt(int num);
     void DrawScanLine();
+		COLOUR GetColour(BYTE colourNum, WORD address) const;
+		void DoTimers(int cycles);
+		void DoInput();
+
     void RenderSprites(BYTE lcdControl);
     void RenderBackground(BYTE lcdControl);
-    COLOUR GetColour(BYTE colourNum, WORD address) const;
 
     // CPU instructions
+		void ExecuteOpcode(BYTE opcode);
+		void ExecuteExtendedOpcode();
     void CPU_8BIT_LOAD(BYTE& reg);
 		void CPU_16BIT_LOAD(WORD& reg);
 		void CPU_REG_LOAD(BYTE& reg, BYTE load, int cycles) ;
@@ -157,9 +139,25 @@ class Emulator
 		void CPU_SRL(BYTE& reg);
 		void CPU_SRL_MEMORY(WORD address);
 
+		PauseFunc		m_TimeToPause;
 		unsigned long long	m_TotalOpcodes;
 
+		bool m_DoLogging;
+
+		RenderFunc  m_RenderFunc;
+
+		// Registers can be used as single 8-bit reg or 16-bit reg combined
+    union Register
+    {
+      WORD reg;
+      struct {
+        BYTE lo;      // Little-Endianess
+        BYTE hi;
+      };
+    };
+
 		BYTE m_JoypadState;
+
 		bool m_GameLoaded;
 		BYTE m_Rom[ROM_SIZE];
     BYTE m_GameBank[CARTRIDGE_SIZE];   // Game cartridge can only store 0x200000
@@ -171,36 +169,44 @@ class Emulator
     Register    m_RegisterBC;
     Register    m_RegisterDE;
     Register    m_RegisterHL;
+		int 			  m_CyclesThisUpdate;
 
 		Register    m_StackPointer;
-
-		bool m_EnableInterupts ;
+		int 				m_CurrentRomBank;
+		bool        m_UsingMemoryModel16_8;
+		bool			  m_EnableInterupts ;
 		bool        m_PendingInteruptDisabled ;
-		bool m_PendingInteruptEnabled ;
+		bool			  m_PendingInteruptEnabled ;
 
-		int 	m_CurrentRomBank;
-		int 	m_CurrentRamBank;
-    bool  m_UsingMemoryModel16_8;
-		int 	m_RetraceLY;
-		int 	m_CyclesThisUpdate;
+		int 				m_CurrentRamBank;
+		int 				m_RetraceLY;
 
-    // Debug variables
-		bool m_DebugPause;
-		bool m_DebugPausePending;
-		bool m_DoLogging;
+		bool 				m_DebugPause;
+		bool 				m_DebugPausePending;
+
+
+		void RequestInterupt(int bit);
+
+    WORD ReadWord() const;
+		void WriteByte(WORD address, BYTE data);
+    void IssueVerticalBlank();
+		void DrawCurrentLine();
+    void PushWordOntoStack(WORD word);
+    WORD PopWordOffStack();
+
 		BYTE m_DebugValue;
 
-		PauseFunc		m_TimeToPause;
-		RenderFunc  m_RenderFunc;
 
 		bool m_UsingMBC1;  // Bank switching 1 (Most common type)
     bool m_UsingMBC2;  // Not too many games use this 
+		bool m_Halted;
 		int  m_TimerVariable;
 		int  m_CurrentClockSpeed;
 		int  m_DividerVariable;
-		bool m_Halted;
+
 
 };
+
 #endif
 
 /*

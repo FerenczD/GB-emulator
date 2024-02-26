@@ -1,7 +1,6 @@
 #include "Config.h"
 #include "Emulator.h"
 #include "GameBoy.h"
-#include "LogMessages.h"
 
 #ifdef WIN32
   #include <Windows.h>
@@ -12,8 +11,8 @@
 #include "SDL/include/SDL_opengl.h"
 #endif
 
-static const int windowWidth = SCREEN_X_AXIS_SIZE;
-static const int windowHeight = SCREEN_Y_AXIS_SIZE;
+static const int windowWidth = 160;
+static const int windowHeight = 144;
 static SDL_Window *window;
 ///////////////////////////////////////////////////////////////////////////////////////
 
@@ -52,6 +51,7 @@ static void DoRender()
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////
+
 GameBoy* GameBoy::m_Instance = 0;
 
 GameBoy* GameBoy::CreateInstance()
@@ -60,13 +60,14 @@ GameBoy* GameBoy::CreateInstance()
   {
     m_Instance = new GameBoy();
     m_Instance->Initialize();
+
   }
 
   return m_Instance;
+
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////
-
 
 GameBoy* GameBoy::GetSingleton()
 {
@@ -75,22 +76,13 @@ GameBoy* GameBoy::GetSingleton()
 
 //////////////////////////////////////////////////////////////////////////////////////////
 
-GameBoy::~GameBoy(void)
-{
-	delete m_Emulator ;
-}
-
-
-//////////////////////////////////////////////////////////////////////////////////////////
-
-GameBoy::GameBoy()
+GameBoy::GameBoy() :
+  m_Emulator(NULL)
 {
   m_Emulator = new Emulator();
   m_Emulator->LoadRom("ROMS/mario2.gb");
   m_Emulator->InitGame(DoRender);
 }
-
-//////////////////////////////////////////////////////////////////////////////////////////
 
 bool GameBoy::Initialize()
 {
@@ -132,6 +124,40 @@ void GameBoy::StartEmulation()
 
   SDL_Quit();
 }
+
+//////////////////////////////////////////////////////////////////////////////////////////
+
+GameBoy::~GameBoy(void)
+{
+	delete m_Emulator ;
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////
+
+void GameBoy::RenderGame()
+{
+  glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+  glLoadIdentity();
+  glRasterPos2i(-1, 1);
+  glPixelZoom(1, -1);
+  glDrawPixels(160, 144, GL_RGB, GL_UNSIGNED_BYTE, m_Emulator->m_ScreenData);
+  SDL_GL_SwapWindow(window);
+  
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////
+void GameBoy::SetKeyPressed(int key)
+{
+  m_Emulator->KeyPressed(key);
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////
+
+void GameBoy::SetKeyReleased(int key)
+{
+  m_Emulator->KeyReleased(key);
+}
+
 //////////////////////////////////////////////////////////////////////////////////////////
 
 bool GameBoy::CreateSDLWindow()
@@ -170,37 +196,13 @@ void GameBoy::InitGL()
   glClearColor(0, 0, 0, 1.0);
   glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
   glShadeModel(GL_FLAT);  
+
   glEnable(GL_TEXTURE_2D);
   glDisable(GL_DEPTH_TEST);
   glDisable(GL_CULL_FACE);
   glDisable(GL_DITHER);
   glDisable(GL_BLEND);
 } 
-
-//////////////////////////////////////////////////////////////////////////////////////////
-
-void GameBoy::RenderGame()
-{
-  glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-  glLoadIdentity();
-  glRasterPos2i(-1, 1);
-  glPixelZoom(1, -1);
-  glDrawPixels(160, 144, GL_RGB, GL_UNSIGNED_BYTE, m_Emulator->m_ScreenData);
-  SDL_GL_SwapWindow(window);
-}
-
-//////////////////////////////////////////////////////////////////////////////////////////
-void GameBoy::SetKeyPressed(int key)
-{
-  m_Emulator->KeyPressed(key);
-}
-
-//////////////////////////////////////////////////////////////////////////////////////////
-
-void GameBoy::SetKeyReleased(int key)
-{
-  m_Emulator->KeyPressed(key);
-}
 
 //////////////////////////////////////////////////////////////////////////////////////////
 
@@ -248,3 +250,5 @@ void GameBoy::HandleInput(SDL_Event& event)
 		}
 	}
 }
+
+//////////////////////////////////////////////////////////////////////////////////////////

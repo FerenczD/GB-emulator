@@ -2,11 +2,9 @@
 
 #include "Config.h"
 #include "Emulator.h"
-#include "LogMessages.h"
 #include <string.h>
 
 /* Local constants */
-#define RETRACE_START 456
 #define VERTICAL_BLANK_SCAN_LINE 0x90
 #define VERTICAL_BLANK_SCAN_LINE_MAX 0x99
 #define RETRACE_START 456
@@ -35,7 +33,7 @@ Emulator::Emulator(void) :
 	,m_TotalOpcodes(0)
 	,m_DoLogging(false)
 {
-	ResetScreen( );
+	ResetScreen();
 }
 
 //////////////////////////////////////////////////////////////////
@@ -44,206 +42,6 @@ Emulator::~Emulator(void)
 {
 	for (std::vector<BYTE*>::iterator it = m_RamBank.begin(); it != m_RamBank.end(); it++)
 		delete[] (*it) ;
-}
-
-//////////////////////////////////////////////////////////////////
-//////////////////////////////////////////////////////////////////
-
-static int hack = 0;
-static long long counter9 = 0;
-
-// remember this update function is not the same as the virtual update function. This gets specifically
-// called by the Game::Update function. This way I have control over when to execute the next opcode. Mainly for the debug window
-void Emulator::Update()
-{
-  hack++;
-
-  m_CyclesThisUpdate = 0;
-  const int m_TargetCycles = 70221; // Complete screen refresh.. NOTE: Shouldnt it be 70224 based	on doc?
-
-  while ((m_CyclesThisUpdate < m_TargetCycles))
-  {
-    if (m_DebugPause)
-      return;
-
-    if (m_DebugPausePending)
-    {
-      if (m_TimeToPause && (m_TimeToPause() == true))
-      {
-        m_DebugPausePending = false;
-        m_DebugPause = true;
-
-        return;
-      }
-    }
-
-    int currentCycle = m_CyclesThisUpdate;
-    BYTE opcode = ExecuteNextOpcode();
-    int cycles = m_CyclesThisUpdate - currentCycle;
-
-    DoTimers(cycles);
-		DoGraphics(cycles);
-		DoInput();
-		DoInterupts();
-  }
-
-	counter9 += m_CyclesThisUpdate;
-	m_RenderFunc();
-}
-
-//////////////////////////////////////////////////////////////////
-
-void Emulator::DoInput( )
-{
-
-}
-
-//////////////////////////////////////////////////////////////////
-
-bool Emulator::InitGame(RenderFunc func)
-{
-  m_RenderFunc = func;
-  return ResetCPU();
-}
-
-//////////////////////////////////////////////////////////////////
-
-void Emulator::DoGraphics(int cycles)
-{
-  SetLCDStatus();
-
-	// count down the LY register which is the current line being drawn. When reaches 144 (0x90) its vertical blank time
-  if (TestBit(ReadMemory(0xFF40), 7))
-    m_RetraceLY -= cycles;  //It takes 456 CPU clock cycles to draw one line
-
-  // if gone past scanline 153 reset to 0
-  if (m_Rom[0xFF44] > VERTICAL_BLANK_SCAN_LINE_MAX) // 153
-    m_Rom[0xFF44] = 0;
-
-  if (m_RetraceLY <= 0)
-    DrawCurrentLine();
-}
-
-//////////////////////////////////////////////////////////////////
-static int timerhack = 0;
-
-void Emulator::DoTimers(int cycles)
-{
-  BYTE timerAtts = m_Rom[TMC];
-
-  m_DividerVariable += cycles;
-
-  // Clock must be enabled to update the clock
-  if (TestBit(timerAtts, 2))
-  {
-    m_TimerVariable += cycles;
-
-    // Time to increment the timer
-    if (m_TimerVariable >= m_CurrentClockSpeed)
-    {
-      m_TimerVariable = 0;
-
-      bool overflow = false;
-
-      if(m_Rom[TIMA] == 0xFF)
-        overflow = true;
-
-      m_Rom[TIMA]++;
-
-      if (overflow)
-      {
-        timerhack++;
-
-        m_Rom[TIMA] = m_Rom[TMA];
-
-        // Request the interrupt
-        RequestInterupt(2);
-      }
-    }
-  }
-
-  if (m_DividerVariable >= 256)
-  {
-    m_DividerVariable = 0;
-    m_Rom[0xFF04];
-  }
-
-}
-
-//////////////////////////////////////////////////////////////////
-void Emulator::DoInterupts()
-{
-  /* Check interrupts are enabled */
-  if (m_EnableInterupts)
-  {
-    // Has any interrupt occurred?
-    BYTE requestFlag = ReadMemory(0xFF0F);
-    if (requestFlag > 0)
-    {
-      // Which requested interrupt has the highest priority?
-      for (int bit = 0; bit < 8; bit++)
-      {
-        if (TestBit(requestFlag, bit))
-        {
-          // Interrupt requested but is it enabled? 
-          BYTE enableReg = ReadMemory(0xFFFF);
-          if (TestBit(enableReg, bit))
-          {
-            ServiceInterrupt(bit);
-          }
-        }
-      }
-    }
-  }
-}
-
-//////////////////////////////////////////////////////////////////
-
-void Emulator::ServiceInterrupt(int num)
-{
-  // Save current program counter
-  PushWordOntoStack(m_ProgramCounter);
-  m_Halted = false;
-
-  char buffer[200];
-	sprintf(buffer, "servicing interupt %d", num);
-	LogMessage::GetSingleton()->DoLogMessage(buffer, false);
-
-  switch(num)
-  {
-    case 0: m_ProgramCounter = 0x40; break; // V-Blank
-    case 1: m_ProgramCounter = 0x48; break; // LCD-State
-    case 2: m_ProgramCounter = 0x50; break; // Timer
-    case 4: m_ProgramCounter = 0x60; break; // JoyPad
-    default: assert(false); break;
-  }
-
-  m_EnableInterupts = false;
-  m_Rom[0xFF0F] = BitReset(m_Rom[0xFF0F], num);
-}
-
-//////////////////////////////////////////////////////////////////
-
-void Emulator::PushWordOntoStack(WORD word)
-{
-  BYTE hi = word >> 8;
-  BYTE lo = word && 0xFF;
-
-  m_StackPointer.reg--;
-  WriteByte(m_StackPointer.reg, hi);
-  m_StackPointer.reg--;
-  WriteByte(m_StackPointer.reg, lo); 
-}
-
-//////////////////////////////////////////////////////////////////
-
-WORD Emulator::PopWordOffStack( )
-{
-	WORD word = ReadMemory(m_StackPointer.reg+1) << 8;
-	word |= ReadMemory(m_StackPointer.reg);
-	m_StackPointer.reg+=2;
-
-	return word ;
 }
 
 //////////////////////////////////////////////////////////////////
@@ -263,18 +61,28 @@ bool Emulator::LoadRom(const std::string& romName)
   fread(m_GameBank, 1, CARTRIDGE_SIZE, in);
   fclose(in);
 
-  memcpy(&m_Rom[0], &m_GameBank[0], 0x8000);  // ROM only stores first 0x8000 from cartridge
+  memcpy(&m_Rom[0x0], &m_GameBank[0], 0x8000);  // ROM only stores first 0x8000 from cartridge
 
   m_CurrentRomBank = 1;
 
   return true;
 }
 
+//////////////////////////////////////////////////////////////////
+
+bool Emulator::InitGame(RenderFunc func)
+{
+  m_RenderFunc = func;
+  return ResetCPU();
+}
+
+//////////////////////////////////////////////////////////////////
+
 void Emulator::ResetScreen()
 {
-  for (int x = 0; x < SCREEN_X_AXIS_SIZE; x++)
+  for (int x = 0; x < 144; x++)
   {
-    for (int y = 0; y < SCREEN_Y_AXIS_SIZE; y++)
+    for (int y = 0; y < 160; y++)
     {
       m_ScreenData[x][y][0] = 255;
       m_ScreenData[x][y][1] = 255;
@@ -285,16 +93,9 @@ void Emulator::ResetScreen()
 
 //////////////////////////////////////////////////////////////////
 
-void Emulator::StopGame( )
-{
-	m_GameLoaded = false ;
-}
-
-//////////////////////////////////////////////////////////////////
-
 bool Emulator::ResetCPU()
 {
-	ResetScreen( );
+	ResetScreen();
 	m_DoLogging = false;
 	m_CurrentRamBank = 0;
 	m_TimerVariable = 0;
@@ -382,8 +183,78 @@ bool Emulator::ResetCPU()
 
 //////////////////////////////////////////////////////////////////
 
+static int hack = 0;
+static long long counter9 = 0;
+
+// remember this update function is not the same as the virtual update function. This gets specifically
+// called by the Game::Update function. This way I have control over when to execute the next opcode. Mainly for the debug window
+void Emulator::Update()
+{
+  hack++;
+
+  m_CyclesThisUpdate = 0;
+  const int m_TargetCycles = 70221; // Complete screen refresh.. NOTE: Shouldnt it be 70224 based	on doc?
+
+  while ((m_CyclesThisUpdate < m_TargetCycles))
+  {
+    if (m_DebugPause)
+      return;
+
+    if (m_DebugPausePending)
+    {
+      if (m_TimeToPause && (m_TimeToPause() == true))
+      {
+        m_DebugPausePending = false;
+        m_DebugPause = true;
+
+        return;
+      }
+    }
+
+    int currentCycle = m_CyclesThisUpdate;
+    BYTE opcode = ExecuteNextOpcode();
+    int cycles = m_CyclesThisUpdate - currentCycle;
+
+    DoTimers(cycles);
+		DoGraphics(cycles);
+		DoInput();
+		DoInterupts();
+  }
+
+	counter9 += m_CyclesThisUpdate;
+	m_RenderFunc();
+}
+
+//////////////////////////////////////////////////////////////////
+
+void Emulator::DoInput( )
+{
+
+}
+
+//////////////////////////////////////////////////////////////////
+
+void Emulator::DoGraphics(int cycles)
+{
+  SetLCDStatus();
+
+	// count down the LY register which is the current line being drawn. When reaches 144 (0x90) its vertical blank time
+  if (TestBit(ReadMemory(0xFF40), 7))
+    m_RetraceLY -= cycles;  //It takes 456 CPU clock cycles to draw one line
+
+  // if gone past scanline 153 reset to 0
+  if (m_Rom[0xFF44] > VERTICAL_BLANK_SCAN_LINE_MAX) // 153
+    m_Rom[0xFF44] = 0;
+
+  if (m_RetraceLY <= 0)
+    DrawCurrentLine();
+}
+
+//////////////////////////////////////////////////////////////////
+
 BYTE Emulator::ExecuteNextOpcode()
 {
+
   BYTE opcode = m_Rom[m_ProgramCounter];
 
   // Valid addresses
@@ -431,100 +302,48 @@ BYTE Emulator::ExecuteNextOpcode()
 
 	return opcode;
 }
+
 //////////////////////////////////////////////////////////////////
 
-void Emulator::SetLCDStatus()
+void Emulator::StopGame( )
 {
-  // TODO: Change direct m_Rom reads to ReadMemory for consistency
-
-  // LCD status register
-  BYTE lcdStatus = m_Rom[0xFF41];
-
-  // Check LCD is actually enabled. If not properly set LCD for IDLE
-  if (TestBit(ReadMemory(0xFF40), 7) == false)
-  {
-    m_RetraceLY = RETRACE_START;    // Scanline back to 0
-    m_Rom[0xFF44] = 0;
-
-    // Mode gets set to 1 when disabled screen
-    lcdStatus &= 0xFC;
-    lcdStatus = BitSet(lcdStatus, 0);
-    WriteByte(0xFF41, lcdStatus);
-
-    return;
-  }
-
-  // LCD is enabled proceed with status update
-  BYTE lY = ReadMemory(0xFF44);     // Current line
-  BYTE currentMode = GetLCDMode();  // Current mode
-  int  mode = 0;
-  bool reqInt = false;
-
-  // Set mode as vertical line if passed 144 (V-Blank = mode 1)
-  if (lY >= VERTICAL_BLANK_SCAN_LINE)
-  {
-    // mode 1
-    mode = 1;
-    lcdStatus = BitSet(lcdStatus, 0);
-    lcdStatus = BitReset(lcdStatus, 1);
-    reqInt    = TestBit(lcdStatus, 4);
-  }
-  // Test for modes 2 and 3
-  else
-  {
-    int mode2Bounds = (RETRACE_START - 80);   // Takes 80 cycles
-    int mode3Bounds = (mode2Bounds - 172);    // Takes 172 cycles
-
-    // mode 2
-    if (m_RetraceLY >= mode2Bounds)
-    {
-      mode = 2;
-      lcdStatus = BitSet(lcdStatus, 1);
-      lcdStatus = BitReset(lcdStatus, 0);
-      reqInt = TestBit(lcdStatus, 5);
-    }
-    // mode 3
-    else if (m_RetraceLY >= mode3Bounds)
-    {
-      mode = 3;
-      lcdStatus = BitSet(lcdStatus, 1);
-      lcdStatus = BitSet(lcdStatus, 0);
-    }
-    // mode 0
-    else
-    {
-      mode = 0;
-			lcdStatus = BitReset(lcdStatus,1);
-			lcdStatus = BitReset(lcdStatus,0);
-			reqInt = TestBit(lcdStatus,3);
-    }
-  }
-
-  // just enetered a new mode so request interrupt
-  if (reqInt && (currentMode != mode))
-    RequestInterupt(1);
-
-  // Check for coincidence flag TODO: Undertsand better how this behaves
-  if (lY == ReadMemory(0xFF45))
-  {
-    lcdStatus = BitSet(lcdStatus, 2);
-
-    if (TestBit(lcdStatus, 6))
-      RequestInterupt(1);
-  }
-  else
-  {
-    lcdStatus = BitReset(lcdStatus, 2);
-  }
-
-  WriteByte(0xFF41, lcdStatus);
+	m_GameLoaded = false ;
 }
+
+//////////////////////////////////////////////////////////////////
+// all reading of rom should go through here so I can trap it.
+
+BYTE Emulator::ReadMemory(WORD address) const
+{
+  // Reading from ROM bank using switching technique based of m_CurrentRomBank
+  if (address >= 0x4000 && address <= 0x7FFF)
+  {
+    unsigned int newAddress = address;
+    newAddress += ((m_CurrentRomBank - 1)*0x4000);
+    return m_GameBank[newAddress];
+  }
+  // Reading from RAM bank using switching techinique as well
+  else if (address >= 0xA000 && address <= 0xBFFF)
+  {
+    WORD newAddress = address - 0xA000;
+    return m_RamBank.at(m_CurrentRamBank)[newAddress];
+  }
+  // Trying to read joypad state
+  else if (address == 0xFF00)
+    return GetJoypadState();
+
+  // return memory
+  return m_Rom[address];
+}
+
 //////////////////////////////////////////////////////////////////
 
-BYTE Emulator::GetLCDMode() const
+WORD Emulator::ReadWord( ) const
 {
-  BYTE lcdStatus = m_Rom[0xFF41];
-  return lcdStatus & 0x3; // Only first 2 bits are mode
+	WORD res = ReadMemory(m_ProgramCounter+1) ;
+	res = res << 8 ;
+	res |= ReadMemory(m_ProgramCounter) ;
+	return res ;
 }
 
 //////////////////////////////////////////////////////////////////
@@ -532,6 +351,7 @@ BYTE Emulator::GetLCDMode() const
 
 // Note that most of the switching mechanism can be found here https://web.archive.org/web/20140410105329/http://nocash.emubase.de/pandocs.htm#soundcontroller
 // in the doc referred by the tutorial
+
 void Emulator::WriteByte(WORD address, BYTE data)
 {
 	// writing to memory address 0x0 to 0x1FFF this disables writing to the ram bank. 0 disables, 0xA enables
@@ -666,8 +486,7 @@ void Emulator::WriteByte(WORD address, BYTE data)
         WORD newAddress = address - 0xA000;
         m_RamBank.at(m_CurrentRamBank)[newAddress] = data;
  		}
-
-
+	}
     // Internal WRAM
     else if ((address >= 0xC000) && (address <= 0xDFFF))
     {
@@ -696,7 +515,7 @@ void Emulator::WriteByte(WORD address, BYTE data)
 
     else if (address == TMC)
     {
-      m_Rom[data] = data;
+      m_Rom[address] = data;
 
       int timerVal = data & 0x03; // Register is 3 bits only
 
@@ -704,10 +523,10 @@ void Emulator::WriteByte(WORD address, BYTE data)
 
       switch (timerVal)
       {
-        case 0x00: clockSpeed = 1024; break;
-        case 0x01: clockSpeed = 16; break;
-        case 0x02: clockSpeed = 64; break;
-        case 0x03: clockSpeed = 256; break;
+        case 0: clockSpeed = 1024; break;
+        case 1: clockSpeed = 16; break;
+        case 2: clockSpeed = 64; break;
+        case 3: clockSpeed = 256; break;
         default: assert(false); break; // weird timer val
       }
 
@@ -738,127 +557,17 @@ void Emulator::WriteByte(WORD address, BYTE data)
       {
         m_Rom[0xFE00 + i] = ReadMemory(newAddress + i);
       }
-    }
+			}
+		// This area is restricted.
+		else if ((address >= 0xFF4C) && (address <= 0xFF7F))
+		{
+      // Nothing to do here
+		}
     // No control needed over this area so write to memory
     else
     {
       m_Rom[address] = data;
     }
-  }
-}
-
-//////////////////////////////////////////////////////////////////
-// all reading of rom should go through here so I can trap it.
-
-BYTE Emulator::ReadMemory(WORD address) const
-{
-  // Reading from ROM bank using switching technique based of m_CurrentRomBank
-  if (address >= 0x4000 && address <= 0x7FFF)
-  {
-    unsigned int newAddress = address;
-    newAddress += ((m_CurrentRomBank - 1)*0x4000);
-    return m_GameBank[newAddress];
-  }
-  // Reading from RAM bank using switching techinique as well
-  else if (address >= 0xA000 && address <= 0xBFFF)
-  {
-    WORD newAddress = address - 0xA000;
-    return m_RamBank.at(m_CurrentRamBank)[newAddress];
-  }
-  // Trying to read joypad state
-  else if (address == 0xFF00)
-    return GetJoypadState();
-
-  // return memory
-  return m_Rom[address];
-}
-
-//////////////////////////////////////////////////////////////////
-
-void Emulator::KeyPressed(int key)
-{
-  // this function CANNOT call ReadMemory(0xFF00) it must access it directly from m_Rom[0xFF00]
-	// because ReadMemory traps this address
-
-  bool previouslyUnset = false;
-
-  // if setting from 1 to 0 we may have to request an interupt
-  if (TestBit(m_JoypadState, key) == false)
-    previouslyUnset = true;
-
-  // remember if a keypressed its bit is 0 not 1
-  m_JoypadState = BitReset(m_JoypadState, key);
-
-  // Button pressed
-  bool button = true;
-
-  // Button key requested
-  if (key > 3)
-    button = true;
-  // Directional button requested
-  else
-    button = false;
-
-  BYTE keyReq = m_Rom[0xFF00];
-  bool requestInterupt = false;
-
-	// player pressed button and programmer interested in button
-	if (button && !TestBit(keyReq,5))
-		requestInterupt = true;
-	// player pressed directional and programmer interested in directional
-	else if (!button && !TestBit(keyReq,4))
-		requestInterupt = true;
-
-	if (requestInterupt && !previouslyUnset)
-		RequestInterupt(4);
-}
-
-//////////////////////////////////////////////////////////////////
-
-void Emulator::KeyReleased(int key)
-{
-  m_JoypadState = BitSet(m_JoypadState, key);
-}
-
-//////////////////////////////////////////////////////////////////
-
-BYTE Emulator::GetJoypadState() const
-{
-  // this function CANNOT call ReadMemory(0xFF00) it must access it directly from m_Rom[0xFF00]
-	// because ReadMemory traps this address
-	BYTE res = m_Rom[0xFF00];
-	res ^= 0xFF;
-
-  // Action buttons
-	if (!TestBit(res, 4))
-	{
-		BYTE topJoypad = m_JoypadState >> 4;
-		topJoypad |= 0xF0; // turn the top 4 bits on
-		res &= topJoypad;  // show what buttons are pressed
-	}
-  //directional buttons
-	else if (!TestBit(res,5))
-	{
-		BYTE bottomJoypad = m_JoypadState & 0xF;
-		bottomJoypad |= 0xF0;
-		res &= bottomJoypad;
-	}
-	return res;
-
-}
-
-//////////////////////////////////////////////////////////////////
-void Emulator::DrawScanLine()
-{
-  BYTE lcdControl = ReadMemory(0xFF40);
-
-  // We can only draw if the LCD is enabled
-  if (TestBit(lcdControl, 7))
-  {
-    /* TODO: Call functions based on each component being enabled or nor */
-    RenderBackground(lcdControl);
-    RenderSprites(lcdControl);
-  }
 }
 
 //////////////////////////////////////////////////////////////////
@@ -874,7 +583,6 @@ void Emulator::IssueVerticalBlank( )
 		//OutputDebugStr(STR::Format("Total VBlanks was: %d\n", vblankcount));
 		vblankcount = 0;
 	}
-
 }
 
 //////////////////////////////////////////////////////////////////
@@ -903,6 +611,98 @@ void Emulator::DrawCurrentLine( )
 		DrawScanLine( );
 	}
 
+}
+
+//////////////////////////////////////////////////////////////////
+
+void Emulator::PushWordOntoStack(WORD word)
+{
+  BYTE hi = word >> 8;
+  BYTE lo = word & 0xFF;
+
+  m_StackPointer.reg--;
+  WriteByte(m_StackPointer.reg, hi);
+  m_StackPointer.reg--;
+  WriteByte(m_StackPointer.reg, lo); 
+}
+
+//////////////////////////////////////////////////////////////////
+
+WORD Emulator::PopWordOffStack( )
+{
+	WORD word = ReadMemory(m_StackPointer.reg+1) << 8;
+	word |= ReadMemory(m_StackPointer.reg);
+	m_StackPointer.reg+=2;
+
+	return word ;
+}
+
+//////////////////////////////////////////////////////////////////
+
+void Emulator::DoInterupts()
+{
+  /* Check interrupts are enabled */
+  if (m_EnableInterupts)
+  {
+    // Has any interrupt occurred?
+    BYTE requestFlag = ReadMemory(0xFF0F);
+    if (requestFlag > 0)
+    {
+      // Which requested interrupt has the highest priority?
+      for (int bit = 0; bit < 8; bit++)
+      {
+        if (TestBit(requestFlag, bit))
+        {
+          // Interrupt requested but is it enabled? 
+          BYTE enabledReg = ReadMemory(0xFFFF);
+          if (TestBit(enabledReg, bit))
+          {
+            ServiceInterrupt(bit);
+          }
+        }
+      }
+    }
+  }
+}
+
+//////////////////////////////////////////////////////////////////
+
+void Emulator::ServiceInterrupt(int num)
+{
+  // Save current program counter
+  PushWordOntoStack(m_ProgramCounter);
+  m_Halted = false;
+
+  char buffer[200];
+	sprintf(buffer, "servicing interupt %d", num);
+	LogMessage::GetSingleton()->DoLogMessage(buffer, false);
+
+  switch(num)
+  {
+    case 0: m_ProgramCounter = 0x40; break; // V-Blank
+    case 1: m_ProgramCounter = 0x48; break; // LCD-State
+    case 2: m_ProgramCounter = 0x50; break; // Timer
+    case 4: m_ProgramCounter = 0x60; break; // JoyPad
+    default: assert(false); break;
+  }
+
+  m_EnableInterupts = false;
+  m_Rom[0xFF0F] = BitReset(m_Rom[0xFF0F], num);
+}
+
+//////////////////////////////////////////////////////////////////
+
+void Emulator::DrawScanLine()
+{
+  BYTE lcdControl = ReadMemory(0xFF40);
+
+  // We can only draw if the LCD is enabled
+  if (TestBit(lcdControl, 7))
+  {
+    /* TODO: Call functions based on each component being enabled or nor */
+    RenderBackground(lcdControl);
+    RenderSprites(lcdControl);
+  }
 }
 
 //////////////////////////////////////////////////////////////////
@@ -1172,7 +972,8 @@ void Emulator::RenderSprites(BYTE lcdControl)
 
 //////////////////////////////////////////////////////////////////
 
-Emulator::COLOUR Emulator::GetColour(BYTE colourNum, WORD address) const{
+Emulator::COLOUR Emulator::GetColour(BYTE colourNum, WORD address) const
+{
   COLOUR res = WHITE;
   BYTE palette = ReadMemory(address);
   int hi = 0;
@@ -1206,6 +1007,217 @@ Emulator::COLOUR Emulator::GetColour(BYTE colourNum, WORD address) const{
 
 //////////////////////////////////////////////////////////////////
 
+void Emulator::SetLCDStatus()
+{
+  // TODO: Change direct m_Rom reads to ReadMemory for consistency
+
+  // LCD status register
+  BYTE lcdStatus = m_Rom[0xFF41];
+
+  // Check LCD is actually enabled. If not properly set LCD for IDLE
+  if (TestBit(ReadMemory(0xFF40), 7) == false)
+  {
+    m_RetraceLY = RETRACE_START;    // Scanline back to 0
+    m_Rom[0xFF44] = 0;
+
+    // Mode gets set to 1 when disabled screen
+    lcdStatus &= 0xFC;
+    lcdStatus = BitSet(lcdStatus, 0);
+    WriteByte(0xFF41, lcdStatus);
+
+    return;
+  }
+
+  // LCD is enabled proceed with status update
+  BYTE lY = ReadMemory(0xFF44);     // Current line
+  BYTE currentMode = GetLCDMode();  // Current mode
+  int  mode = 0;
+  bool reqInt = false;
+
+  // Set mode as vertical line if passed 144 (V-Blank = mode 1)
+  if (lY >= VERTICAL_BLANK_SCAN_LINE)
+  {
+    // mode 1
+    mode = 1;
+    lcdStatus = BitSet(lcdStatus, 0);
+    lcdStatus = BitReset(lcdStatus, 1);
+    reqInt    = TestBit(lcdStatus, 4);
+  }
+  // Test for modes 2 and 3
+  else
+  {
+    int mode2Bounds = (RETRACE_START - 80);   // Takes 80 cycles
+    int mode3Bounds = (mode2Bounds - 172);    // Takes 172 cycles
+
+    // mode 2
+    if (m_RetraceLY >= mode2Bounds)
+    {
+      mode = 2;
+      lcdStatus = BitSet(lcdStatus, 1);
+      lcdStatus = BitReset(lcdStatus, 0);
+      reqInt = TestBit(lcdStatus, 5);
+    }
+    // mode 3
+    else if (m_RetraceLY >= mode3Bounds)
+    {
+      mode = 3;
+      lcdStatus = BitSet(lcdStatus, 1);
+      lcdStatus = BitSet(lcdStatus, 0);
+    }
+    // mode 0
+    else
+    {
+      mode = 0;
+			lcdStatus = BitReset(lcdStatus,1);
+			lcdStatus = BitReset(lcdStatus,0);
+			reqInt = TestBit(lcdStatus,3);
+    }
+  }
+
+  // just enetered a new mode so request interrupt
+  if (reqInt && (currentMode != mode))
+    RequestInterupt(1);
+
+  // Check for coincidence flag TODO: Undertsand better how this behaves
+  if (lY == ReadMemory(0xFF45))
+  {
+    lcdStatus = BitSet(lcdStatus, 2);
+
+    if (TestBit(lcdStatus, 6))
+      RequestInterupt(1);
+  }
+  else
+  {
+    lcdStatus = BitReset(lcdStatus, 2);
+  }
+
+  WriteByte(0xFF41, lcdStatus);
+}
+
+//////////////////////////////////////////////////////////////////
+
+BYTE Emulator::GetJoypadState() const
+{
+  // this function CANNOT call ReadMemory(0xFF00) it must access it directly from m_Rom[0xFF00]
+	// because ReadMemory traps this address
+	BYTE res = m_Rom[0xFF00];
+	res ^= 0xFF;
+
+  // Action buttons
+	if (!TestBit(res, 4))
+	{
+		BYTE topJoypad = m_JoypadState >> 4;
+		topJoypad |= 0xF0; // turn the top 4 bits on
+		res &= topJoypad;  // show what buttons are pressed
+	}
+  //directional buttons
+	else if (!TestBit(res,5))
+	{
+		BYTE bottomJoypad = m_JoypadState & 0xF;
+		bottomJoypad |= 0xF0;
+		res &= bottomJoypad;
+	}
+	return res;
+
+}
+
+//////////////////////////////////////////////////////////////////
+
+void Emulator::KeyPressed(int key)
+{
+  // this function CANNOT call ReadMemory(0xFF00) it must access it directly from m_Rom[0xFF00]
+	// because ReadMemory traps this address
+
+  bool previouslyUnset = false;
+
+  // if setting from 1 to 0 we may have to request an interupt
+  if (TestBit(m_JoypadState, key) == false)
+    previouslyUnset = true;
+
+  // remember if a keypressed its bit is 0 not 1
+  m_JoypadState = BitReset(m_JoypadState, key);
+
+  // Button pressed
+  bool button = true;
+
+  // Button key requested
+  if (key > 3)
+    button = true;
+  // Directional button requested
+  else
+    button = false;
+
+  BYTE keyReq = m_Rom[0xFF00];
+  bool requestInterupt = false;
+
+	// player pressed button and programmer interested in button
+	if (button && !TestBit(keyReq,5))
+		requestInterupt = true;
+	// player pressed directional and programmer interested in directional
+	else if (!button && !TestBit(keyReq,4))
+		requestInterupt = true;
+
+	if (requestInterupt && !previouslyUnset)
+		RequestInterupt(4);
+}
+
+//////////////////////////////////////////////////////////////////
+
+void Emulator::KeyReleased(int key)
+{
+	// this function CANNOT call ReadMemory(0xFF00) it must access it directly from m_Rom[0xFF00]
+	// because ReadMemory traps this address
+  m_JoypadState = BitSet(m_JoypadState, key);
+}
+
+//////////////////////////////////////////////////////////////////
+
+static int timerhack = 0;
+
+void Emulator::DoTimers(int cycles)
+{
+  BYTE timerAtts = m_Rom[TMC];
+
+  m_DividerVariable += cycles;
+
+  // Clock must be enabled to update the clock
+  if (TestBit(timerAtts, 2))
+  {
+    m_TimerVariable += cycles;
+
+    // Time to increment the timer
+    if (m_TimerVariable >= m_CurrentClockSpeed)
+    {
+      m_TimerVariable = 0;
+
+      bool overflow = false;
+
+      if(m_Rom[TIMA] == 0xFF)
+        overflow = true;
+
+      m_Rom[TIMA]++;
+
+      if (overflow)
+      {
+        timerhack++;
+
+        m_Rom[TIMA] = m_Rom[TMA];
+
+        // Request the interrupt
+        RequestInterupt(2);
+      }
+    }
+  }
+
+  if (m_DividerVariable >= 256)
+  {
+    m_DividerVariable = 0;
+    m_Rom[0xFF04]++;
+  }
+}
+
+//////////////////////////////////////////////////////////////////
+
 void Emulator::CreateRamBanks(int numBanks)
 {
 	// DOES THE FIRST RAM BANK NEED TO BE SET TO THE CONTENTS of m_Rom[0xA000] - m_Rom[0xC000]?
@@ -1221,6 +1233,7 @@ void Emulator::CreateRamBanks(int numBanks)
 }
 
 //////////////////////////////////////////////////////////////////
+
 void Emulator::RequestInterupt(int bit)
 {
   BYTE requestFlag = ReadMemory(0xFF0F);
@@ -1230,10 +1243,11 @@ void Emulator::RequestInterupt(int bit)
 
 //////////////////////////////////////////////////////////////////
 
-WORD Emulator::ReadWord( ) const
+BYTE Emulator::GetLCDMode() const
 {
-	WORD res = ReadMemory(m_ProgramCounter+1) ;
-	res = res << 8 ;
-	res |= ReadMemory(m_ProgramCounter) ;
-	return res ;
+  BYTE lcdStatus = m_Rom[0xFF41];
+  return lcdStatus & 0x3; // Only first 2 bits are mode
 }
+
+//////////////////////////////////////////////////////////////////
+

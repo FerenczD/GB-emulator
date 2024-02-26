@@ -7,8 +7,7 @@
 #include <stdio.h>
 #include <assert.h>
 
-
-// #include "LogMessages.h"
+#include "LogMessages.h"
 
 template< typename typeData >
 bool TestBit( typeData inData, size_t inBitPosition )
